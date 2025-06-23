@@ -275,17 +275,9 @@ configure_proxmox_via_ssh() {
     sshpass -p "$NEW_ROOT_PASSWORD" ssh -p 5555 -o StrictHostKeyChecking=no root@localhost "echo -e 'nameserver 185.12.64.1\nnameserver 185.12.64.2\nnameserver 1.1.1.1\nnameserver 8.8.4.4' | tee /etc/resolv.conf"
     sshpass -p "$NEW_ROOT_PASSWORD" ssh -p 5555 -o StrictHostKeyChecking=no root@localhost "echo $HOSTNAME > /etc/hostname"
     sshpass -p "$NEW_ROOT_PASSWORD" ssh -p 5555 -o StrictHostKeyChecking=no root@localhost "systemctl disable --now rpcbind rpcbind.socket"
-    # Power off the VM
-    echo -e "${CLR_YELLOW}Powering off the VM...${CLR_RESET}"
-    sshpass -p "$NEW_ROOT_PASSWORD" ssh -p 5555 -o StrictHostKeyChecking=no root@localhost 'poweroff' || true
-    
-    # Wait for QEMU to exit
-    echo -e "${CLR_YELLOW}Waiting for QEMU process to exit...${CLR_RESET}"
-    wait $QEMU_PID || true
-    echo -e "${CLR_GREEN}QEMU process has exited.${CLR_RESET}"
 }
 
-# Function to reboot into the main OS
+# Function to terminate QEMU and reboot into the main OS
 reboot_to_main_os() {
     echo -e "${CLR_GREEN}Installation complete!${CLR_RESET}"
     echo -e "${CLR_YELLOW}After rebooting, you will be able to access your Proxmox at https://${MAIN_IPV4_CIDR%/*}:8006${CLR_RESET}"
@@ -293,9 +285,19 @@ reboot_to_main_os() {
     #ask user to reboot the system
     read -e -p "Do you want to reboot the system? (y/n): " -i "y" REBOOT
     if [[ "$REBOOT" == "y" ]]; then
+        # Power off the VM
+        echo -e "${CLR_YELLOW}Powering off the VM...${CLR_RESET}"
+        sshpass -p "$NEW_ROOT_PASSWORD" ssh -p 5555 -o StrictHostKeyChecking=no root@localhost 'poweroff' || true
+        # Wait for QEMU to exit
+        echo -e "${CLR_YELLOW}Waiting for QEMU process to exit...${CLR_RESET}"
+        wait $QEMU_PID || true
+        echo -e "${CLR_GREEN}QEMU process has exited.${CLR_RESET}"
         echo -e "${CLR_YELLOW}Rebooting the system...${CLR_RESET}"
         reboot
     else
+        echo -e "${CLR_GREEN}The QEMU VM is still running Proxmox.${CLR_RESET}"
+        echo -e "${CLR_GREEN}You can SSH into it to make manual tweaks (use the password you set during installation):${CLR_RESET}"
+        echo -e "${CLR_GREEN}    ssh -p 5555 -o StrictHostKeyChecking=no root@localhost${CLR_RESET}"
         echo -e "${CLR_YELLOW}Exiting...${CLR_RESET}"
         exit 0
     fi
